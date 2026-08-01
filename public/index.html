@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a1a">
+    <title>My Shibuya</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #1a1a1a; --bg-secondary: #242424; --bg-card: #2a2a2a;
+            --text-primary: #f5f5f5; --text-secondary: #a0a0a0;
+            --accent: #c8a96e; --accent-dim: #8a7040;
+            --score-high: #4ecdc4; --score-mid: #c8a96e; --score-low: #666;
+            --sold-out: #e74c3c;
+        }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        .page-wrapper { max-width: 700px; margin: 0 auto; }
+
+        /* Entire top section (logo → sub-tabs) is one sticky layer; all view content scrolls behind it */
+        .sticky-top { position: sticky; top: 0; z-index: 100; background: rgba(26,26,26,0.97); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .header { border-bottom: 1px solid rgba(200,169,110,0.15); padding: 12px 20px; }
+        .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: var(--accent); letter-spacing: 1px; }
+        .header-subtitle { font-size: 0.75rem; color: var(--text-secondary); }
+
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .prefs-btn { background: rgba(200,169,110,0.12); border: 1px solid rgba(200,169,110,0.3); border-radius: 20px; padding: 4px 12px; font-size: 0.7rem; color: var(--accent); cursor: pointer; font-family: inherit; }
+        .prefs-btn:hover { background: rgba(200,169,110,0.2); }
+
+        .prefs-panel { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .prefs-panel.open { max-height: 640px; overflow-y: auto; border-bottom: 1px solid rgba(200,169,110,0.15); }
+        .prefs-head { padding: 14px 20px 6px; }
+        .prefs-title { font-size: 0.8rem; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
+        .prefs-sub { font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; line-height: 1.4; }
+        .prefs-body { padding: 8px 20px 16px; }
+        .prefs-intro { font-size: 0.68rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 12px; }
+        .axis-row { padding: 9px 0; cursor: help; }
+        .axis-poles { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-primary); margin-bottom: 3px; }
+        .axis-pole.left { text-align: left; } .axis-pole.right { text-align: right; }
+        /* Center detent: track has a subtle midpoint mark */
+        .axis-slider { width: 100%; accent-color: var(--accent); cursor: pointer;
+            background: linear-gradient(to right, transparent calc(50% - 1px), rgba(255,255,255,0.18) calc(50% - 1px), rgba(255,255,255,0.18) calc(50% + 1px), transparent calc(50% + 1px)); }
+        .axis-examples { display: flex; justify-content: space-between; font-size: 0.58rem; color: var(--text-secondary); opacity: 0.7; margin-top: 2px; }
+        .axis-examples span:last-child { text-align: right; }
+        .pref-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+        .pref-btn-secondary { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 12px; font-size: 0.68rem; color: var(--text-secondary); cursor: pointer; font-family: inherit; }
+        .pref-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+        .spotify-badge { display: flex; align-items: center; gap: 6px; background: rgba(30,215,96,0.1); border: 1px solid rgba(30,215,96,0.3); border-radius: 20px; padding: 4px 12px; font-size: 0.7rem; color: #1ed760; cursor: pointer; text-decoration: none; }
+        .spotify-badge.disconnected { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--text-secondary); }
+        .spotify-dot { width: 6px; height: 6px; background: #1ed760; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        .nav-tabs { display: flex; background: var(--bg-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .nav-tab { flex: 1; padding: 12px 16px; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 1px; text-align: center; transition: all 0.2s; }
+        .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .view { display: none; } .view.active { display: block; }
+
+        .filters { display: flex; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--bg-secondary); }
+        /* Only the active view's filter bar shows inside the sticky group */
+        .sticky-filters { display: none; }
+        .sticky-filters.active { display: flex; }
+        .filter-tab { padding: 10px 16px; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
+        .filter-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .content-area { padding: 16px 16px 100px; }
+        .date-group { margin-bottom: 24px; }
+        .date-header { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); padding: 8px 4px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .section-header { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); padding: 12px 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 10px; }
+
+        .card { display: flex; gap: 12px; padding: 14px; background: var(--bg-card); border-radius: 12px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.04); }
+        .card.sold-out { opacity: 0.6; }
+
+        .album-art-link { flex-shrink: 0; }
+        .album-art { width: 72px; height: 72px; border-radius: 6px; object-fit: cover; display: flex; align-items: center; justify-content: center; background: var(--bg-secondary); }
+        .album-art img { width: 100%; height: 100%; border-radius: 6px; object-fit: cover; }
+        .album-art-placeholder { width: 72px; height: 72px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; color: rgba(255,255,255,0.3); }
+
+        .card-info { flex: 1; min-width: 0; }
+        .card-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-artist { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; }
+        .card-meta { display: flex; align-items: center; gap: 8px; font-size: 0.65rem; color: var(--text-secondary); }
+        .card-desc { font-size: 0.7rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 6px; }
+
+        .match-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+        .match-reason { font-size: 0.6rem; background: rgba(78,205,196,0.1); color: var(--score-high); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(78,205,196,0.2); }
+        .match-reason.feedback { background: rgba(200,169,110,0.1); color: var(--accent); border-color: rgba(200,169,110,0.3); }
+
+        .sold-out-badge { background: var(--sold-out); color: #fff; font-size: 0.6rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; display: inline-block; margin-top: 6px; }
+        .ticket-btn { display: inline-block; margin-top: 6px; font-size: 0.65rem; color: var(--accent); border: 1px solid var(--accent-dim); padding: 3px 10px; border-radius: 4px; text-decoration: none; }
+
+        .score-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; }
+        .score-ring { position: relative; width: 44px; height: 44px; }
+        .score-ring svg { transform: rotate(-90deg); width: 44px; height: 44px; }
+        .score-ring-bg { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 3; }
+        .score-ring-fill { fill: none; stroke-width: 3; stroke-linecap: round; }
+        .score-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 0.75rem; font-weight: 700; }
+        .score-label { font-size: 0.55rem; color: var(--text-secondary); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .taste-profile { padding: 16px 20px; background: var(--bg-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .taste-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); margin-bottom: 8px; }
+        .taste-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+        .taste-tag { background: rgba(200,169,110,0.1); border: 1px solid rgba(200,169,110,0.25); border-radius: 12px; padding: 3px 10px; font-size: 0.7rem; color: var(--accent); }
+
+        .genre-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+        .genre-tag { font-size: 0.6rem; background: rgba(200,169,110,0.1); color: var(--accent); padding: 2px 6px; border-radius: 4px; }
+
+        .history-intro { padding: 16px 20px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .rating-row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+        .rating-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: transparent; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .rating-btn:hover { border-color: var(--accent); transform: scale(1.15); }
+        .rating-btn.selected { border-color: var(--accent); background: rgba(200,169,110,0.2); transform: scale(1.1); }
+        .rating-label { font-size: 0.6rem; color: var(--text-secondary); margin-left: 8px; }
+
+        .add-session-btn { display: block; width: 100%; padding: 14px; margin-top: 16px; background: rgba(200,169,110,0.1); border: 1px dashed var(--accent-dim); border-radius: 12px; color: var(--accent); font-size: 0.8rem; cursor: pointer; text-align: center; }
+
+        .loading { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 0.85rem; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--accent-dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        a { text-decoration: none; color: inherit; }
+
+        .sort-btn { font-size: 0.6rem; padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+        .sort-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(200,169,110,0.1); }
+
+        .delete-btn { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .delete-btn:hover { border-color: var(--sold-out); color: var(--sold-out); }
+
+        .album-art-link img { width: 72px; height: 72px; border-radius: 6px; object-fit: cover; }
+    </style>
+</head>
+<body>
+<div class="page-wrapper">
+    <!-- One sticky layer: logo → sub-tabs. Everything below scrolls behind it. -->
+    <div class="sticky-top">
+        <header class="header">
+            <div class="header-top">
+                <div class="logo">MY SHIBUYA</div>
+                <div class="header-actions">
+                    <button class="prefs-btn" id="prefsBtn" title="Listening preferences">🎚️ Vibe</button>
+                    <a href="/login" class="spotify-badge disconnected" id="spotifyBadge">
+                        <span>Connect Spotify</span>
+                    </a>
+                </div>
+            </div>
+            <div class="header-subtitle">Personalized Hi-Fi recommendations · Seattle</div>
+        </header>
+
+        <!-- Listening-intent preferences (primary scoring signal) -->
+        <div class="prefs-panel" id="prefsPanel">
+            <div class="prefs-head">
+                <div class="prefs-title">Your Shibuya Listening Vibe</div>
+                <div class="prefs-sub">Scores favor sessions matching these qualities. Pre-filled from your ratings — adjust anytime.</div>
+            </div>
+            <div class="prefs-body" id="prefsBody"></div>
+        </div>
+
+        <div class="taste-profile" id="tasteProfile" style="display:none">
+            <div class="taste-label">Your Sound Profile</div>
+            <div class="taste-tags" id="tasteTags"></div>
+        </div>
+
+        <div class="nav-tabs">
+            <div class="nav-tab active" data-view="upcoming">Upcoming</div>
+            <div class="nav-tab" data-view="discover">Discover</div>
+            <div class="nav-tab" data-view="history">My History</div>
+        </div>
+
+        <!-- Sub-tabs for the Upcoming view; shown only when Upcoming is active -->
+        <div class="filters sticky-filters active" id="upcomingFilters">
+            <div class="filter-tab active" data-filter="all">All</div>
+            <div class="filter-tab" data-filter="top">Top Picks</div>
+            <div class="filter-tab" data-filter="available">Available</div>
+        </div>
+    </div>
+
+    <!-- UPCOMING -->
+    <div class="view active" id="view-upcoming">
+        <div class="content-area" id="upcomingContainer">
+            <div class="loading"><div class="loading-spinner"></div><br>Loading schedule...</div>
+        </div>
+    </div>
+
+    <!-- DISCOVER -->
+    <div class="view" id="view-discover">
+        <div class="content-area" id="discoverContainer">
+            <div class="loading"><div class="loading-spinner"></div><br>Building recommendations...</div>
+        </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="view" id="view-history">
+        <div class="history-intro">Rate albums you've heard at Shibuya. Your feedback influences future scores.</div>
+        <div class="content-area" id="historyContainer"></div>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
