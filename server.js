@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { scrapeSchedule } = require('./scraper');
 const { AXES } = require('./axes');
+const { getHistory, setHistory } = require('./storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -189,6 +190,54 @@ app.post('/api/logout', (req, res) => {
     if (req.spotifyRefreshToken) accessCache.delete(req.spotifyRefreshToken);
     res.clearCookie(COOKIE_NAME, { path: '/' });
     res.json({ ok: true });
+});
+
+// Resolve the current visitor's Spotify user id (used as the storage key).
+// Cached on the access-token entry so we don't call /me on every history op.
+async function currentUserId(req) {
+    if (!req.spotifyAccessToken) return null;
+    const cached = accessCache.get(req.spotifyRefreshToken);
+    if (cached?.userId) return cached.userId;
+    const me = await spotifyFetch(req, '/me');
+    if (!me?.id) return null;
+    if (cached) cached.userId = me.id;
+    return me.id;
+}
+
+// ============================================================
+// PER-USER HISTORY (server-side, keyed to Spotify account)
+// So a user's rated sessions follow them across laptop, phone, anywhere.
+// ============================================================
+app.get('/api/history', async (req, res) => {
+    const userId = await currentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+        res.json({ history: await getHistory(userId) });
+    } catch (err) {
+        console.error('History load error:', err.message);
+        res.status(500).json({ error: 'Failed to load history' });
+    }
+});
+
+app.put('/api/history', async (req, res) => {
+    const userId = await currentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    const history = Array.isArray(req.body?.history) ? req.body.history : null;
+    if (!history) return res.status(400).json({ error: 'history array required' });
+    // Basic sanitation + cap to keep a runaway client from bloating storage
+    const clean = history.slice(0, 500).map(f => ({
+        artist: String(f.artist || '').slice(0, 200),
+        album: String(f.album || '').slice(0, 200),
+        genres: Array.isArray(f.genres) ? f.genres.slice(0, 12).map(g => String(g).slice(0, 60)) : [],
+        rating: Math.max(1, Math.min(5, parseInt(f.rating) || 3)),
+    })).filter(f => f.artist && f.album);
+    try {
+        await setHistory(userId, clean);
+        res.json({ ok: true, count: clean.length });
+    } catch (err) {
+        console.error('History save error:', err.message);
+        res.status(500).json({ error: 'Failed to save history' });
+    }
 });
 
 // Fetch all pages of a paginated Spotify endpoint (items + next), up to a cap

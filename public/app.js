@@ -9,27 +9,33 @@ let scheduleEvents = [];
 let historySort = 'rating';
 let historyArtCache = {}; // { "artist|album": { image, spotifyUri } }
 let axisVocab = []; // bipolar taste axes from /api/axes
+let isAuthenticated = false; // set from /api/status; gates server history sync
 
 // ============================================================
 // INIT
 // ============================================================
 async function init() {
-    loadFeedbackSeed();
     setupNavigation();
 
     // Load the bipolar taste-axis definitions for the preferences menu
     const axisResp = await fetchJSON('/api/axes');
     axisVocab = Array.isArray(axisResp?.axes) ? axisResp.axes : [];
-    maybeSeedPreferences();
     setupPreferences();
 
     const status = await fetchJSON('/api/status');
+    isAuthenticated = !!status.authenticated;
     updateSpotifyBadge(status);
 
     if (status.authenticated) {
+        // Pull this user's server-side history into the local cache FIRST, so
+        // their real history shows on any device. New users get an empty list.
+        await syncHistoryFromServer();
         spotifyProfile = await fetchJSON('/api/profile');
         renderTasteProfile();
     }
+
+    // Seed the Vibe sliders from history once it's loaded (empty history = neutral)
+    maybeSeedPreferences();
 
     try {
         scheduleEvents = await fetchJSON('/api/schedule');
@@ -67,6 +73,10 @@ function updateSpotifyBadge(status) {
 
 function showLogoutModal() {
     if (confirm('Switch Spotify account? This will disconnect the current account.')) {
+        // Clear the local history/prefs cache so the next account doesn't see the
+        // previous user's data (server is the real per-account record).
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(PREFS_KEY);
         fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = '/login'; });
     }
 }
@@ -683,8 +693,37 @@ async function renderHistory() {
 // ============================================================
 // FEEDBACK PERSISTENCE
 // ============================================================
+// History belongs to the logged-in Spotify account and lives SERVER-SIDE, so it
+// follows the user across devices. localStorage is only a synchronous local
+// cache: loadFeedback() reads it (keeping every call site simple), saveFeedback()
+// writes it AND pushes to the server. On login we pull the server copy first.
+let serverHistoryLoaded = false; // true once we've synced from the server this session
+
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch{return[];}}
-function saveFeedback(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}
+
+function saveFeedback(d){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+    // Push to server when authenticated (fire-and-forget; local cache is source
+    // of truth for this tab, server is the cross-device record).
+    if (isAuthenticated) {
+        fetch('/api/history', {
+            method:'PUT', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ history: d }),
+        }).catch(()=>{});
+    }
+}
+
+// Pull the user's server-side history into the local cache after login. Server
+// is authoritative on load, so a fresh device/browser shows their real history.
+async function syncHistoryFromServer(){
+    const resp = await fetchJSON('/api/history');
+    if (resp && Array.isArray(resp.history)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.history));
+        serverHistoryLoaded = true;
+        return true;
+    }
+    return false;
+}
 
 // ============================================================
 // LISTENING-INTENT PREFERENCES  { axisKey: -1..1 }  (0 = no preference)
@@ -788,35 +827,8 @@ function renderPreferences(){
     });
 }
 
-function loadFeedbackSeed() {
-    if(loadFeedback().length>0)return;
-    saveFeedback([
-        {artist:"Fela Kuti",album:"London Scene",genres:["afrobeat","funk","jazz"],rating:4},
-        {artist:"Miles Davis",album:"In a Silent Way",genres:["jazz","fusion","ambient"],rating:4},
-        {artist:"Alice Coltrane",album:"Journey in Satchidananda",genres:["spiritual jazz","modal jazz","ambient"],rating:5},
-        {artist:"Pink Floyd",album:"Dark Side of the Moon",genres:["progressive rock","art rock","psychedelic rock"],rating:5},
-        {artist:"Pink Floyd",album:"Wish You Were Here",genres:["progressive rock","art rock"],rating:4},
-        {artist:"Pink Floyd",album:"Animals",genres:["progressive rock","art rock"],rating:4},
-        {artist:"Massive Attack",album:"Mezzanine",genres:["trip-hop","electronic","downtempo"],rating:5},
-        {artist:"Sigur Rós",album:"Ágætis Byrjun",genres:["post-rock","ambient","art rock"],rating:5},
-        {artist:"Herbie Hancock",album:"Head Hunters",genres:["jazz","fusion","funk"],rating:4},
-        {artist:"Radiohead",album:"OK Computer",genres:["alternative rock","art rock","electronic"],rating:5},
-        {artist:"Radiohead",album:"In Rainbows",genres:["alternative rock","art rock","electronic"],rating:4},
-        {artist:"Daft Punk",album:"Random Access Memories",genres:["electronic","disco","funk"],rating:4},
-        {artist:"The Mars Volta",album:"Frances the Mute",genres:["progressive rock","experimental"],rating:4},
-        {artist:"John Coltrane",album:"A Love Supreme",genres:["spiritual jazz","modal jazz"],rating:5},
-        {artist:"Tool",album:"Lateralus",genres:["progressive rock","progressive metal","art rock"],rating:4},
-        {artist:"Floating Points",album:"Promises",genres:["ambient","electronic","spiritual jazz"],rating:5},
-        {artist:"Tame Impala",album:"Currents",genres:["psychedelic rock","synth-pop","electronic"],rating:4},
-        {artist:"Tom Waits",album:"Mule Variations",genres:["experimental","blues","alternative"],rating:4},
-        {artist:"Led Zeppelin",album:"II",genres:["hard rock","blues rock","classic rock"],rating:5},
-        {artist:"Kamasi Washington",album:"The Epic",genres:["spiritual jazz","fusion","jazz"],rating:4},
-        {artist:"Thom Yorke",album:"The Eraser",genres:["electronic","art rock","experimental"],rating:4},
-        {artist:"Gorillaz",album:"Demon Days",genres:["alternative rock","electronic","hip-hop"],rating:4},
-        {artist:"Air",album:"Moon Safari",genres:["electronic","downtempo","dream pop"],rating:4},
-        {artist:"St. Germain",album:"Tourist",genres:["electronic","jazz","house"],rating:4},
-    ]);
-}
+// (No default seed — every user starts with an empty My History and builds
+// their own. History is loaded from the server for logged-in users.)
 
 // ============================================================
 // NAVIGATION
