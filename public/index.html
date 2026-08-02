@@ -30,6 +30,28 @@
         .header-actions { display: flex; align-items: center; gap: 8px; }
         .prefs-btn { background: rgba(200,169,110,0.12); border: 1px solid rgba(200,169,110,0.3); border-radius: 20px; padding: 4px 12px; font-size: 0.7rem; color: var(--accent); cursor: pointer; font-family: inherit; }
         .prefs-btn:hover { background: rgba(200,169,110,0.2); }
+        .help-btn { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; width: 24px; height: 24px; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; padding: 0; }
+        .help-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ---- Guided tour (coach marks) ---- */
+        /* Overlay itself is transparent — the scrim is drawn entirely by the
+           ring's huge box-shadow, so the spotlighted target shows through at
+           full clarity (0% dark) while everything else sits under 50% black. */
+        .tour-overlay { position: fixed; inset: 0; z-index: 1000; background: transparent; display: none; }
+        .tour-overlay.active { display: block; }
+        /* the spotlight ring drawn around the current target */
+        .tour-ring { position: absolute; border: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5), 0 0 18px rgba(200,169,110,0.6); transition: all 0.25s ease; pointer-events: none; }
+        .tour-bubble { position: absolute; max-width: 280px; background: var(--bg-card); border: 1px solid rgba(200,169,110,0.35); border-radius: 12px; padding: 14px 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); transition: all 0.25s ease; }
+        .tour-bubble h4 { font-size: 0.85rem; color: var(--accent); margin-bottom: 6px; }
+        .tour-bubble p { font-size: 0.75rem; color: var(--text-primary); line-height: 1.45; margin-bottom: 12px; }
+        .tour-bubble .tour-cta { font-size: 0.72rem; color: var(--accent); font-weight: 600; }
+        .tour-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+        .tour-dots { display: flex; gap: 5px; }
+        .tour-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+        .tour-dot.active { background: var(--accent); }
+        .tour-buttons { display: flex; gap: 8px; }
+        .tour-skip { background: transparent; border: none; color: var(--text-secondary); font-size: 0.7rem; cursor: pointer; font-family: inherit; }
+        .tour-next { background: var(--accent); border: none; color: #1a1a1a; font-size: 0.72rem; font-weight: 600; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: inherit; }
 
         .prefs-panel { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--bg-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .prefs-panel.open { max-height: 640px; overflow-y: auto; border-bottom: 1px solid rgba(200,169,110,0.15); }
@@ -143,6 +165,7 @@
             <div class="header-top">
                 <div class="logo">MY SHIBUYA</div>
                 <div class="header-actions">
+                    <button class="help-btn" id="helpBtn" title="How it works">?</button>
                     <button class="prefs-btn" id="prefsBtn" title="Listening preferences">🎚️ Vibe</button>
                     <a href="/login" class="spotify-badge disconnected" id="spotifyBadge">
                         <span>Connect Spotify</span>
@@ -198,6 +221,23 @@
     <div class="view" id="view-history">
         <div class="history-intro">Rate albums you've heard at Shibuya. Your feedback influences future scores.</div>
         <div class="content-area" id="historyContainer"></div>
+    </div>
+</div>
+
+<!-- Guided tour overlay (coach marks) -->
+<div class="tour-overlay" id="tourOverlay">
+    <div class="tour-ring" id="tourRing"></div>
+    <div class="tour-bubble" id="tourBubble">
+        <h4 id="tourTitle"></h4>
+        <p id="tourBody"></p>
+        <div class="tour-cta" id="tourCta"></div>
+        <div class="tour-actions">
+            <div class="tour-dots" id="tourDots"></div>
+            <div class="tour-buttons">
+                <button class="tour-skip" id="tourSkip">Skip</button>
+                <button class="tour-next" id="tourNext">Next</button>
+            </div>
+        </div>
     </div>
 </div>
 

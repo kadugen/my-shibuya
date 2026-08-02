@@ -51,6 +51,8 @@ async function init() {
     renderUpcoming('all');
     renderDiscover();
     renderHistory();
+
+    setupTour();
 }
 
 // ============================================================
@@ -841,6 +843,99 @@ function setupNavigation() {
     document.querySelectorAll('.filter-tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');renderUpcoming(tab.dataset.filter);});});
 }
 function getCurrentFilter(){return document.querySelector('.filter-tab.active')?.dataset.filter||'all';}
+
+// ============================================================
+// GUIDED TOUR (coach marks) — points out the 3 key features with a benefit
+// + call-to-action. Auto-shows once for new visitors; replayable via the "?".
+// ============================================================
+const TOUR_SEEN_KEY = 'my-shibuya-tour-seen';
+const TOUR_STEPS = [
+    {
+        target: '#spotifyBadge',
+        title: 'Connect Spotify',
+        body: 'We read who you follow, your top artists, and your library to tailor every score to your taste.',
+        cta: '→ Tap to connect — it takes 5 seconds.',
+    },
+    {
+        target: '[data-view="history"]',
+        title: 'Rate what you\'ve heard',
+        body: 'Your strongest signal: add albums you\'ve caught at Shibuya and rate them. A great (or bad) rating shapes future picks more than anything else — and it follows you to any device.',
+        cta: '→ Open My History and add a session.',
+    },
+    {
+        target: '#prefsBtn',
+        title: 'Set your Vibe',
+        body: 'Slide toward how you like to listen — immersive & instrumental, or vocal & upbeat. Scores and Discover update instantly to match.',
+        cta: '→ Tap Vibe and try the sliders.',
+    },
+];
+let tourIndex = 0;
+
+function setupTour() {
+    document.getElementById('helpBtn')?.addEventListener('click', () => startTour());
+    document.getElementById('tourNext')?.addEventListener('click', () => {
+        tourIndex++;
+        if (tourIndex >= TOUR_STEPS.length) endTour(); else showTourStep();
+    });
+    document.getElementById('tourSkip')?.addEventListener('click', endTour);
+    document.getElementById('tourOverlay')?.addEventListener('click', (e) => {
+        if (e.target.id === 'tourOverlay') endTour(); // click backdrop to dismiss
+    });
+    window.addEventListener('resize', () => {
+        if (document.getElementById('tourOverlay')?.classList.contains('active')) positionTour();
+    });
+    // Auto-show once for first-time visitors
+    if (!localStorage.getItem(TOUR_SEEN_KEY)) startTour();
+}
+
+function startTour() {
+    tourIndex = 0;
+    document.getElementById('tourOverlay').classList.add('active');
+    // Render the progress dots once
+    const dots = document.getElementById('tourDots');
+    dots.innerHTML = TOUR_STEPS.map((_, i) => `<span class="tour-dot" data-i="${i}"></span>`).join('');
+    showTourStep();
+}
+
+function showTourStep() {
+    const step = TOUR_STEPS[tourIndex];
+    document.getElementById('tourTitle').textContent = step.title;
+    document.getElementById('tourBody').textContent = step.body;
+    document.getElementById('tourCta').textContent = step.cta;
+    document.getElementById('tourNext').textContent = (tourIndex === TOUR_STEPS.length - 1) ? 'Got it' : 'Next';
+    document.querySelectorAll('.tour-dot').forEach((d, i) => d.classList.toggle('active', i === tourIndex));
+    positionTour();
+}
+
+function positionTour() {
+    const step = TOUR_STEPS[tourIndex];
+    const el = document.querySelector(step.target);
+    const ring = document.getElementById('tourRing');
+    const bubble = document.getElementById('tourBubble');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    // Spotlight ring around the target
+    ring.style.left = `${r.left - pad}px`;
+    ring.style.top = `${r.top - pad}px`;
+    ring.style.width = `${r.width + pad * 2}px`;
+    ring.style.height = `${r.height + pad * 2}px`;
+    // Bubble below the target (or above if too low), clamped to viewport
+    const bw = Math.min(280, window.innerWidth - 24);
+    bubble.style.width = `${bw}px`;
+    let left = Math.min(Math.max(12, r.left + r.width / 2 - bw / 2), window.innerWidth - bw - 12);
+    let top = r.bottom + 14;
+    // Measure height after positioning width
+    const bh = bubble.offsetHeight || 160;
+    if (top + bh > window.innerHeight - 12) top = Math.max(12, r.top - bh - 14);
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${top}px`;
+}
+
+function endTour() {
+    document.getElementById('tourOverlay')?.classList.remove('active');
+    localStorage.setItem(TOUR_SEEN_KEY, '1');
+}
 
 // GO
 init();
