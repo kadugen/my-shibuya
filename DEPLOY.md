@@ -50,6 +50,8 @@ Render's dashboard instead (Step 2).
    - `NODE_ENV` = `production`
    - `REDIRECT_URI` = `https://shibuya.asherdesign.com/callback`
    - (Do **not** set `PORT` — Render provides it.)
+   - `TICKETMASTER_API_KEY` and/or `SEATGEEK_CLIENT_ID` — powers the
+     **Concerts** tab (see "Concerts tab" below).
 5. Click **Create Web Service**. You'll get a URL like
    `https://my-shibuya.onrender.com`. Confirm it loads.
 
@@ -97,6 +99,21 @@ By default a Spotify app is in Development Mode: only users you list can log in
 On your phone, open `https://shibuya.asherdesign.com` in Safari/Chrome →
 **Share → Add to Home Screen**. It launches full-screen with its own icon (the
 app already ships the required PWA meta tags).
+
+## Concerts tab
+
+Lists upcoming Seattle-area (Tacoma → Everett) and Gorge shows by artists the
+signed-in user follows on Spotify. It needs at least one free key:
+
+1. **Ticketmaster** (instant): sign up at https://developer.ticketmaster.com,
+   open **My Apps**, copy the **Consumer Key** → `TICKETMASTER_API_KEY`.
+2. **SeatGeek** (optional, adds venues Ticketmaster doesn't sell, e.g. AXS):
+   https://seatgeek.com/account/develop → create an app → copy the **Client ID**
+   → `SEATGEEK_CLIENT_ID`.
+
+Add them to `.env` locally and to Render → **Environment**, then redeploy.
+Listings are cached for 6 hours; the first load after Render wakes up takes
+~10–20s.
 
 ## Local development
 

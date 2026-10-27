@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { scrapeSchedule } = require('./scraper');
 const { AXES } = require('./axes');
 const { getHistory, setHistory } = require('./storage');
+const concerts = require('./concerts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -483,11 +484,39 @@ app.get('/api/schedule', async (req, res) => {
     }
 });
 
+// Concerts by followed artists in the Seattle area (Concerts tab)
+app.get('/api/concerts', async (req, res) => {
+    if (!req.spotifyAccessToken) return res.status(401).json({ error: 'Not authenticated' });
+    if (!concerts.isConfigured()) return res.json({ configured: false, concerts: [] });
+    try {
+        const [followed, area] = await Promise.all([
+            fetchFollowedArtists(req, 5000),
+            concerts.getAreaEvents(),
+        ]);
+        res.json({
+            configured: true,
+            concerts: concerts.matchFollowed(followed, area.events),
+            followedCount: followed.length,
+            areaEventCount: area.events.length,
+            sources: area.sources,
+            errors: area.errors,
+            fetchedAt: area.fetchedAt,
+        });
+    } catch (err) {
+        console.error('Concerts error:', err.message);
+        res.status(500).json({ error: 'Failed to load concerts' });
+    }
+});
+
 // ============================================================
 // START
 // ============================================================
 
-app.listen(PORT, () => {
+// Loopback by default so local dev isn't reachable from the LAN. Render (which
+// sets RENDER=true) must bind all interfaces to receive traffic from its proxy.
+const HOST = process.env.HOST || (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
+
+app.listen(PORT, HOST, () => {
     console.log(`\n  🎵 My Shibuya running at http://127.0.0.1:${PORT}\n`);
     console.log(`  → Open that URL in your browser`);
     console.log(`  → You'll be prompted to connect Spotify\n`);

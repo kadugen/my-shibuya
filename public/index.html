@@ -155,6 +155,18 @@
         .delete-btn:hover { border-color: var(--sold-out); color: var(--sold-out); }
 
         .album-art-link img { width: 72px; height: 72px; border-radius: 6px; object-fit: cover; }
+
+        /* ---- Concerts ---- */
+        .concert-art img, .concert-art .album-art-placeholder { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+        .concert-date { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; }
+        .concert-dow { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .concert-day { font-size: 1.3rem; font-weight: 700; color: var(--accent); line-height: 1.1; }
+        .concert-mon { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-badge { font-size: 0.6rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; display: inline-block; margin-top: 6px; margin-right: 6px; background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+        .status-badge.cancelled { background: var(--sold-out); color: #fff; }
+        .status-badge.postponed, .status-badge.rescheduled { background: rgba(200,169,110,0.2); color: var(--accent); }
+        .ticket-btn + .ticket-btn { margin-left: 6px; }
+        .concerts-meta { font-size: 0.65rem; color: var(--text-secondary); padding: 8px 4px 12px; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -192,6 +204,7 @@
         <div class="nav-tabs">
             <div class="nav-tab active" data-view="upcoming">Upcoming</div>
             <div class="nav-tab" data-view="discover">Discover</div>
+            <div class="nav-tab" data-view="concerts">Concerts</div>
             <div class="nav-tab" data-view="history">My History</div>
         </div>
 
@@ -200,6 +213,13 @@
             <div class="filter-tab active" data-filter="all">All</div>
             <div class="filter-tab" data-filter="top">Top Picks</div>
             <div class="filter-tab" data-filter="available">Available</div>
+        </div>
+
+        <!-- Sub-tabs for the Concerts view -->
+        <div class="filters sticky-filters" id="concertFilters">
+            <div class="filter-tab active" data-range="all">All</div>
+            <div class="filter-tab" data-range="30">Next 30 Days</div>
+            <div class="filter-tab" data-range="90">Next 3 Months</div>
         </div>
     </div>
 
@@ -214,6 +234,13 @@
     <div class="view" id="view-discover">
         <div class="content-area" id="discoverContainer">
             <div class="loading"><div class="loading-spinner"></div><br>Building recommendations...</div>
+        </div>
+    </div>
+
+    <!-- CONCERTS -->
+    <div class="view" id="view-concerts">
+        <div class="content-area" id="concertsContainer">
+            <div class="loading"><div class="loading-spinner"></div><br>Finding Seattle shows by artists you follow...</div>
         </div>
     </div>
 

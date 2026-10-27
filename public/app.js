@@ -637,6 +637,95 @@ async function renderDiscover() {
 }
 
 // ============================================================
+// RENDER: Concerts — Seattle-area shows by artists you follow on Spotify
+// ============================================================
+let concertsData = null;     // /api/concerts response
+let concertsLoading = false;
+
+// Event data comes from third-party ticketing APIs, so escape it before rendering
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl = u => /^https:\/\//i.test(u || '') ? esc(u) : '#';
+
+async function loadConcerts() {
+    if (concertsData || concertsLoading) return;
+    const container = document.getElementById('concertsContainer');
+    if (!isAuthenticated) {
+        container.innerHTML = '<div class="loading">Connect Spotify to see upcoming Seattle shows by artists you follow.<br><br><a href="/login" class="ticket-btn">Connect Spotify</a></div>';
+        return;
+    }
+    concertsLoading = true;
+    const data = await fetchJSON('/api/concerts');
+    concertsLoading = false;
+    if (!Array.isArray(data.concerts)) {
+        container.innerHTML = '<div class="loading">Couldn\'t load concerts right now. Try again in a bit.</div>';
+        return;
+    }
+    concertsData = data;
+    renderConcerts();
+}
+
+function formatShowTime(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+function renderConcerts() {
+    const container = document.getElementById('concertsContainer');
+    if (!concertsData) return;
+    if (!concertsData.configured) {
+        container.innerHTML = '<div class="loading">Concert listings aren\'t set up yet — the server needs a free Ticketmaster or SeatGeek API key.</div>';
+        return;
+    }
+    const range = document.querySelector('#concertFilters .filter-tab.active')?.dataset.range || 'all';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cutoff = range === 'all' ? null : new Date(today.getTime() + parseInt(range) * 86400000);
+    const shows = concertsData.concerts.filter(c => {
+        const d = new Date(c.date + 'T12:00:00');
+        return d >= today && (!cutoff || d <= cutoff);
+    });
+
+    const sources = (concertsData.sources || []).join(' + ') || 'no sources';
+    let html = `<div class="concerts-meta">${shows.length} show${shows.length === 1 ? '' : 's'} · checked ${concertsData.followedCount} artists you follow against ${concertsData.areaEventCount.toLocaleString()} Seattle-area & Gorge music events (${esc(sources)})</div>`;
+    if (!shows.length) {
+        container.innerHTML = html + '<div class="loading">None of the artists you follow have Seattle-area shows listed in this window.</div>';
+        return;
+    }
+
+    const grouped = {};
+    shows.forEach(c => { const k = c.date.slice(0, 7); (grouped[k] = grouped[k] || []).push(c); });
+    Object.keys(grouped).sort().forEach(month => {
+        const label = new Date(month + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        html += `<div class="date-group"><div class="date-header">${label}</div>`;
+        grouped[month].forEach(c => {
+            const d = new Date(c.date + 'T12:00:00');
+            const art = c.artistImage ? `<img src="${safeUrl(c.artistImage)}" alt="">` : placeholderArt(c.artist, c.artist);
+            const status = ['cancelled', 'postponed', 'rescheduled', 'offsale'].includes(c.status)
+                ? `<span class="status-badge ${esc(c.status)}">${c.status === 'offsale' ? 'Off sale' : esc(c.status)}</span>` : '';
+            const tickets = c.status === 'cancelled' ? '' : c.links.map(l => `<a href="${safeUrl(l.url)}" target="_blank" rel="noopener" class="ticket-btn">${esc(l.source)}</a>`).join('');
+            const subtitle = c.title && c.title.toLowerCase() !== c.artist.toLowerCase() ? c.title : '';
+            html += `<div class="card ${c.status === 'cancelled' ? 'sold-out' : ''}">
+                <a href="${safeUrl(c.spotifyUrl)}" target="_blank" rel="noopener" class="album-art-link concert-art">${art}</a>
+                <div class="card-info">
+                    <div class="card-title">${esc(c.artist)}</div>
+                    ${subtitle ? `<div class="card-artist">${esc(subtitle)}</div>` : ''}
+                    <div class="card-meta"><span>📍 ${esc(c.venue)}${c.city ? ' · ' + esc(c.city) : ''}</span></div>
+                    <div class="card-meta">${c.time ? `<span>🕐 ${formatShowTime(c.time)}</span>` : ''}${c.priceMin ? `<span>from $${Math.round(c.priceMin)}</span>` : ''}</div>
+                    <div>${status}${tickets}</div>
+                </div>
+                <div class="concert-date">
+                    <span class="concert-dow">${d.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                    <span class="concert-day">${d.getDate()}</span>
+                    <span class="concert-mon">${d.toLocaleDateString('en-US', { month: 'short' })}</span>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    container.innerHTML = html;
+}
+
+// ============================================================
 // RENDER: History
 // ============================================================
 async function renderHistory() {
@@ -837,12 +926,15 @@ function renderPreferences(){
 // ============================================================
 function setupNavigation() {
     document.querySelectorAll('.nav-tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));tab.classList.add('active');document.getElementById(`view-${tab.dataset.view}`).classList.add('active');
-        // Sub-tab filter bar lives in the sticky header, so toggle it with the view
+        // Sub-tab filter bars live in the sticky header, so toggle them with the view
         document.getElementById('upcomingFilters').classList.toggle('active', tab.dataset.view==='upcoming');
+        document.getElementById('concertFilters').classList.toggle('active', tab.dataset.view==='concerts');
+        if (tab.dataset.view==='concerts') loadConcerts(); // lazy: only pull when first opened
         window.scrollTo(0,0);});});
-    document.querySelectorAll('.filter-tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');renderUpcoming(tab.dataset.filter);});});
+    document.querySelectorAll('#upcomingFilters .filter-tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('#upcomingFilters .filter-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');renderUpcoming(tab.dataset.filter);});});
+    document.querySelectorAll('#concertFilters .filter-tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('#concertFilters .filter-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');renderConcerts();});});
 }
-function getCurrentFilter(){return document.querySelector('.filter-tab.active')?.dataset.filter||'all';}
+function getCurrentFilter(){return document.querySelector('#upcomingFilters .filter-tab.active')?.dataset.filter||'all';}
 
 // ============================================================
 // GUIDED TOUR (coach marks) — points out the 3 key features with a benefit
